@@ -1,0 +1,19 @@
+<!doctype html><html><meta charset="utf-8"><body style="margin:0"><script>
+// Streamlit component API v1. No external scripts, network calls or timers.
+const origin=window.location.origin;
+const send=(type,extra={})=>window.parent.postMessage({isStreamlitMessage:true,type,...extra},origin);
+let sent;
+window.addEventListener('message',event=>{
+  if(event.source!==window.parent || event.origin!==origin || event.data?.type!=='streamlit:render')return;
+  const theme=event.data.theme?.base;
+  if(theme!=='light'&&theme!=='dark')return;
+  document.documentElement.dataset.radar_pncpTheme=theme;
+  // This is Radar PNCP's own attribute; native controls/theme remain owned by Streamlit.
+  try{window.parent.document.documentElement.dataset.radar_pncpTheme=theme;}catch(_){}
+  send('streamlit:setFrameHeight',{height:0});
+  if(theme!==event.data.args.aplicado && theme!==sent){
+    sent=theme;send('streamlit:setComponentValue',{value:theme,dataType:'json'});
+  } else if(theme===event.data.args.aplicado){sent=undefined;}
+});
+send('streamlit:componentReady',{apiVersion:1});
+</script></body></html>

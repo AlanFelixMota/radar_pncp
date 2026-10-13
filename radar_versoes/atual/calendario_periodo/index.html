@@ -1,0 +1,65 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+:root{--bg:#fff;--fg:#172b45;--line:#c6d2e0;--soft:#e8eef6;--accent:#1763ad;--chosen:#deedff;color-scheme:light}
+:root[data-theme=dark]{--bg:#141d2c;--fg:#eef3fb;--line:#50617a;--soft:#24334a;--accent:#8ac0ff;--chosen:#234c76;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;color:var(--fg);background:var(--bg);font:14px/1.45 system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px;min-width:0}button{cursor:pointer}button:hover{background:var(--soft)}:focus-visible{outline:2px solid var(--accent);outline-offset:1px}button:disabled{opacity:.4;cursor:default}
+#label{display:block;margin-bottom:6px}#toggle{width:100%;text-align:left}#panel{border:1px solid var(--line);border-radius:7px;margin-top:6px;padding:10px;max-width:420px}[hidden]{display:none!important}
+.fields,.nav,.footer{display:flex;gap:7px;align-items:center;margin-bottom:9px}.fields label{flex:1;min-width:0}.fields input{width:100%;margin-top:3px}.nav select{flex:1}.nav button{flex:0 0 32px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.weekday{text-align:center;font-size:12px;padding:4px 0}.day{padding:5px 0;border-color:transparent}.day.range{background:var(--chosen)}.day.edge{border-color:var(--accent);font-weight:700}.day.today{box-shadow:inset 0 -2px var(--accent)}
+#status{margin:8px 0;font-size:12px}#error{color:var(--fg);border-left:3px solid #c34c30;padding-left:7px;font-size:12px}.footer{justify-content:space-between;margin:8px 0 0}.footer button{font-size:12px}
+</style></head><body>
+<span id="label">Período de publicação</span><button id="toggle" type="button" aria-labelledby="label toggle" aria-expanded="false" aria-controls="panel"></button>
+<section id="panel" hidden aria-label="Calendário do período de publicação">
+<div class="fields"><label>Início<input id="start" inputmode="numeric" placeholder="DD/MM/AAAA" maxlength="10"></label><label>Fim<input id="end" inputmode="numeric" placeholder="DD/MM/AAAA" maxlength="10"></label></div>
+<div class="nav"><button id="prev" type="button" aria-label="Mês anterior">‹</button><select id="month" aria-label="Mês"></select><select id="year" aria-label="Ano"></select><button id="next" type="button" aria-label="Mês seguinte">›</button></div>
+<div class="grid" id="week"></div><div class="grid" id="days" role="group" aria-label="Dias do mês"></div>
+<p id="status" aria-live="polite"></p><p id="error" role="alert" hidden></p>
+<div class="footer"><button id="current" type="button">Mês atual</button><button id="cancel" type="button">Cancelar</button><button id="done" type="button">Aplicar período</button></div>
+</section>
+<script>
+const $=id=>document.getElementById(id),origin=location.origin;
+const send=(type,extra={})=>parent.postMessage({isStreamlitMessage:true,type,...extra},origin);
+const months=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let args,base='',dates=[],viewYear,viewMonth,choosing='start',previous=[],hasError=false;
+const iso=(y,m,d)=>`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+const br=s=>s?s.split('-').reverse().join('/'):'—';
+function parse(s){const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s.trim());if(!m)return null;const y=+m[3],mo=+m[2]-1,d=+m[1],dt=new Date(y,mo,d);return dt.getFullYear()===y&&dt.getMonth()===mo&&dt.getDate()===d?iso(y,mo,d):null}
+function size(){send('streamlit:setFrameHeight',{height:document.body.scrollHeight+3})}
+function emit(error=''){hasError=Boolean(error);$('error').hidden=!error;$('error').textContent=error;send('streamlit:setComponentValue',{value:{base:JSON.parse(base),dates,error},dataType:'json'});size()}
+function valid(){return dates.length===2&&dates.every(d=>d&&d>=args.min_date&&d<=args.max_date)&&dates[0]<=dates[1]}
+function summary(){ $('toggle').textContent=dates.length===2?`${br(dates[0])} a ${br(dates[1])} ▾`:'Complete o período ▾' }
+function fields(){ $('start').value=br(dates[0])==='—'?'':br(dates[0]);$('end').value=br(dates[1])==='—'?'':br(dates[1]);summary() }
+function moveCurrent(){const d=args.today.split('-').map(Number);viewYear=d[0];viewMonth=d[1]-1;render()}
+function open(){previous=[...dates];choosing='start';$('panel').hidden=false;$('toggle').setAttribute('aria-expanded','true');moveCurrent();$('month').focus();size()}
+function close(){ $('panel').hidden=true;$('toggle').setAttribute('aria-expanded','false');size();$('toggle').focus() }
+function cancel(){ dates=[...previous];fields();emit(valid()?'':'Complete as duas datas do período.');close() }
+function pick(s){if(choosing==='start'){dates=[s];choosing='end';fields();emit('Selecione a data final do período.');render()}else{dates=[dates[0],s].sort();choosing='start';fields();emit();render();close()}}
+function render(){
+ $('month').value=String(viewMonth);$('year').value=String(viewYear);$('days').replaceChildren();
+ const first=new Date(viewYear,viewMonth,1).getDay(),count=new Date(viewYear,viewMonth+1,0).getDate();
+ for(let i=0;i<first;i++)$('days').append(document.createElement('span'));
+ for(let d=1;d<=count;d++){
+  const s=iso(viewYear,viewMonth,d),b=document.createElement('button');b.type='button';b.textContent=d;b.className='day';b.dataset.date=s;b.setAttribute('aria-label',br(s));b.disabled=s<args.min_date||s>args.max_date;
+  if(dates.length===2&&s>=dates[0]&&s<=dates[1])b.classList.add('range');if(dates.includes(s))b.classList.add('edge');if(s===args.today)b.classList.add('today');b.setAttribute('aria-pressed',String(dates.includes(s)));b.onclick=()=>pick(s);$('days').append(b);
+ }
+ const lower=args.min_date.slice(0,7),upper=args.max_date.slice(0,7),month=iso(viewYear,viewMonth,1).slice(0,7);$('prev').disabled=month<=lower;$('next').disabled=month>=upper;
+ $('status').textContent=choosing==='start'?'Escolha o início e depois o fim. Você também pode digitar as datas.':'Agora escolha a data final. A pesquisa só usa o período ao clicar em Pesquisar.';size();
+}
+function nav(step){const d=new Date(viewYear,viewMonth+step,1);viewYear=d.getFullYear();viewMonth=d.getMonth();render()}
+function typed(){dates=[parse($('start').value),parse($('end').value)];summary();emit(valid()?'':'Informe duas datas válidas em DD/MM/AAAA, com início até o fim e dentro do período permitido.');render()}
+$('toggle').onclick=()=>$('panel').hidden?open():close();$('prev').onclick=()=>nav(-1);$('next').onclick=()=>nav(1);$('current').onclick=moveCurrent;
+$('cancel').onclick=cancel;$('done').onclick=()=>{typed();if(valid())close()};$('start').onchange=typed;$('end').onchange=typed;
+$('start').onfocus=()=>{choosing='start';render()};$('end').onfocus=()=>{choosing='end';render()};
+$('month').onchange=()=>{viewMonth=+$('month').value;render()};$('year').onchange=()=>{viewYear=+$('year').value;render()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('panel').hidden){e.preventDefault();cancel()}if(e.target.classList.contains('day')&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();const day=Number(e.target.textContent)+({ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[e.key]);const d=new Date(viewYear,viewMonth,day),s=iso(d.getFullYear(),d.getMonth(),d.getDate());if(s<args.min_date||s>args.max_date)return;viewYear=d.getFullYear();viewMonth=d.getMonth();render();document.querySelector(`[data-date="${s}"]`)?.focus()}});
+months.forEach((m,i)=>{const o=new Option(m,i);$('month').append(o)});['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(s=>{const e=document.createElement('span');e.className='weekday';e.textContent=s;$('week').append(e)});
+addEventListener('message',e=>{
+ if(e.source!==parent||e.origin!==origin||e.data?.type!=='streamlit:render')return;
+ args=e.data.args;document.documentElement.dataset.theme=e.data.theme?.base==='dark'?'dark':'light';
+ const newBase=JSON.stringify(args.value);
+ if(base!==newBase){base=newBase;dates=[...args.value];previous=[...dates];fields();$('error').hidden=true;hasError=false}
+ const selectedYear=+$('year').value;$('year').replaceChildren();for(let y=+args.min_date.slice(0,4);y<=+args.max_date.slice(0,4);y++)$('year').append(new Option(y,y));if(selectedYear)$('year').value=selectedYear;
+ if(viewYear===undefined)moveCurrent();else render();size();
+});
+send('streamlit:componentReady',{apiVersion:1});new ResizeObserver(size).observe(document.body);
+</script></body></html>
