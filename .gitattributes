@@ -8,3 +8,4 @@
 *.docx binary
 *.xlsx binary
 *.zip binary
+*.txt text eol=lf
