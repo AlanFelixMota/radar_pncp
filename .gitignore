@@ -1,0 +1,39 @@
+# Ambientes e dependencias locais
+.venv/
+venv/
+env/
+python/
+dependencias.zip
+dependencias.sha256
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Dados e estado de execucao
+radar_dados/*
+!radar_dados/.gitkeep
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+*.lock
+*.sync-lock
+# Versoes locais e pacotes de atualizacao
+radar_versoes/anterior/
+radar_versoes/historico/
+radar_versoes/operacoes/
+radar_versoes/pacotes/*
+!radar_versoes/pacotes/.gitkeep
+radar_versoes/*.zip
+radar_versoes/*.json
+radar_versoes/cancelar_atualizacao
+radar_versoes/atual/instalacao.json
+dist/
+build/
+# Configuracoes privadas
+.env
+.env.*
+!.env.example
+**/secrets.toml
+.DS_Store
+Thumbs.db
