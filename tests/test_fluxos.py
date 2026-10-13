@@ -154,7 +154,8 @@ class Fluxos(unittest.TestCase):
         self.assertEqual(hashes, {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.root.glob("*.db")})
         with closing(sqlite3.connect(destino / "radar_jobs.db")) as con:
             self.assertEqual(con.execute("SELECT tipo FROM jobs").fetchone()[0], "ATUALIZACAO_DIARIA")
-            self.assertEqual(con.execute("SELECT db_compras FROM jobs").fetchone()[0], str(destino / "compras.db"))
+            caminho_gravado = Path(con.execute("SELECT db_compras FROM jobs").fetchone()[0])
+            self.assertTrue(caminho_gravado.samefile(destino / "compras.db"))
         with closing(sqlite3.connect(destino / "compras.db")) as con:
             self.assertEqual(con.execute("SELECT count(*) FROM coleta_alvos_pesquisa").fetchone()[0], 1)
             self.assertEqual(con.execute("SELECT origem,prioridade FROM itens_fila").fetchone(), ("COLETA_NOVA", 10))
